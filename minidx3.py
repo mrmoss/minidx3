@@ -3,6 +3,14 @@ import array
 import hid
 import time
 
+
+#NEED:
+#  P (Set Pin)
+#  B (Get Reg)
+#  C (Set Reg)
+#  S (Set Date)
+#  All helpers for registers
+
 def crc(data):
 	crc=0
 	for ii in range(len(data)):
@@ -48,49 +56,81 @@ def recv_packet(dev):
 		raise Exception("Invalid checksum (got "+str(hex(checksum))+" expected "+str(hex(checksum_calc))+").")
 	return payload
 
+def parse_date(buf):
+	if len(buf)!=15:
+		raise Exception("Expected a date string size of 15 bytes got "+str(date_size)+" bytes.")
+
+	date={}
+	date['year']=array_to_str(buf[:4])
+	date['month']=array_to_str(buf[4:6])
+	date['day']=array_to_str(buf[6:8])
+	date['hour']=array_to_str(buf[8:10])
+	date['minute']=array_to_str(buf[10:12])
+	date['second']=array_to_str(buf[12:15])
+
+	return date
+
 def login(dev,pin):
 	ptype='L'
 	send_packet(dev,ptype+pin)
-	res=recv_packet(dev)
+	buf=recv_packet(dev)
 
-	if len(res)<2:
-		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(res))+" bytes).")
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
 
-	rtype=chr(res[0])
-	res=res[1:]
+	rtype=chr(buf[0])
+	buf=buf[1:]
 	if rtype!=ptype:
 		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
 
-	code=chr(res[0])
-	res=res[1:]
+	code=chr(buf[0])
+	buf=buf[1:]
 	if code!='0' and code!='1':
 		raise Exception("Received error code ("+code+").")
 
 	return code is '0'
 
+def logout(dev):
+	ptype='O'
+	send_packet(dev,ptype)
+	buf=recv_packet(dev)
+
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
+
+	rtype=chr(buf[0])
+	buf=buf[1:]
+	if rtype!=ptype:
+		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
+
+	code=chr(buf[0])
+	buf=buf[1:]
+	if code!='0' and code!='1':
+		raise Exception("Received error code ("+code+").")
+
 
 def get_num(dev):
 	ptype='N'
 	send_packet(dev,ptype)
-	res=recv_packet(dev)
+	buf=recv_packet(dev)
 
-	if len(res)<2:
-		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(res))+" bytes).")
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
 
-	rtype=chr(res[0])
-	res=res[1:]
+	rtype=chr(buf[0])
+	buf=buf[1:]
 	if rtype!=ptype:
 		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
 
-	code=chr(res[0])
-	res=res[1:]
+	code=chr(buf[0])
+	buf=buf[1:]
 	if code!='0':
 		raise Exception("Received error code ("+code+").")
 
-	if len(res)!=2:
-		raise Exception("Malformed packet (expected 2 bytes got "+len(res)+" bytes).")
+	if len(buf)!=2:
+		raise Exception("Malformed packet (expected 2 bytes got "+len(buf)+" bytes).")
 
-	return (res[0]<<8)+res[1]
+	return (buf[0]<<8)+buf[1]
 
 def mprint(arr):
 	print(array_to_str(arr)+" - "+str(arr))
@@ -98,60 +138,115 @@ def mprint(arr):
 def get_entry(dev,index):
 	ptype='G'
 	send_packet(dev,ptype+chr((index&0xff00)>>8)+chr(index&0x00ff))
-	res=recv_packet(dev)
+	buf=recv_packet(dev)
 
-	if len(res)<2:
-		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(res))+" bytes).")
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
 
-	rtype=chr(res[0])
-	res=res[1:]
+	rtype=chr(buf[0])
+	buf=buf[1:]
 	if rtype!=ptype:
 		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
 
-	code=chr(res[0])
-	res=res[1:]
+	code=chr(buf[0])
+	buf=buf[1:]
 	if code!='0':
 		raise Exception("Received error code ("+code+").")
 
-	if len(res)<1:
+	if len(buf)<1:
 		raise Exception("Malformed packet (expected at least 1 byte got 0 bytes).")
 
-	date_size=res[0]
-	res=res[1:]
+	date_size=buf[0]
+	buf=buf[1:]
 
-	if len(res)<date_size:
-		raise Exception("Malformed packet (expected at least "+str(date_size)+" bytes got "+str(len(res))+" bytes).")
-	date=res[:date_size]
-	res=res[date_size:]
+	if len(buf)<date_size:
+		raise Exception("Malformed packet (expected at least "+str(date_size)+" bytes got "+str(len(buf))+" bytes).")
+	date=buf[:date_size]
+	buf=buf[date_size:]
 
-	if len(res)<3:
-		raise Exception("Malformed packet (expected at least 3 bytes got "+str(len(res))+" bytes).")
-	track_sizes=res[:3]
-	res=res[3:]
+	if len(buf)<3:
+		raise Exception("Malformed packet (expected at least 3 bytes got "+str(len(buf))+" bytes).")
+	track_sizes=buf[:3]
+	buf=buf[3:]
 
 	tracks=[]
 	for ii in range(3):
 		track_size=track_sizes[ii]
-		if len(res)<track_size:
-			raise Exception("Malformed packet (expected at least "+str(track_size)+" bytes got "+str(len(res))+" bytes).")
-		track=array_to_str(res[:track_size])
-		res=res[track_size:]
+		if len(buf)<track_size:
+			raise Exception("Malformed packet (expected at least "+str(track_size)+" bytes got "+str(len(buf))+" bytes).")
+		track=array_to_str(buf[:track_size])
+		buf=buf[track_size:]
 		tracks.append(track)
 
-	year=date[:4]
-	date=date[4:]
-	month=date[:2]
-	date=date[2:]
-	day=date[:2]
-	date=date[2:]
-	hour=date[:2]
-	date=date[2:]
-	minute=date[:2]
-	date=date[2:]
-	second=date[:3]
-	date=date[3:]
+	date=parse_date(date)
 
 	return tracks
+
+def erase(dev):
+	ptype='E'
+	send_packet(dev,ptype)
+	buf=recv_packet(dev)
+
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
+
+	rtype=chr(buf[0])
+	buf=buf[1:]
+	if rtype!=ptype:
+		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
+
+	code=chr(buf[0])
+	buf=buf[1:]
+	if code!='0':
+		raise Exception("Received error code ("+code+").")
+
+def get_date(dev):
+	ptype='T'
+	send_packet(dev,ptype)
+	buf=recv_packet(dev)
+
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
+
+	rtype=chr(buf[0])
+	buf=buf[1:]
+	if rtype!=ptype:
+		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
+
+	code=chr(buf[0])
+	buf=buf[1:]
+	if code!='0':
+		raise Exception("Received error code ("+code+").")
+
+	return parse_date(buf)
+
+def get_product_version(dev):
+	ptype='F'
+	send_packet(dev,ptype)
+	buf=recv_packet(dev)
+
+	if len(buf)<2:
+		raise Exception("Invalid response size (expected at least 2 bytes got "+str(len(buf))+" bytes).")
+
+	rtype=chr(buf[0])
+	buf=buf[1:]
+	if rtype!=ptype:
+		raise Exception("Invalid response type (expected '"+ptype+"' got '"+rtype+"').")
+
+	buf=array_to_str(buf)
+	while len(buf)>0:
+		nullbyte_index=buf.find('\0')
+		if nullbyte_index<0:
+			break
+		buf=buf[:nullbyte_index]+buf[nullbyte_index+1:]
+
+	return buf
+
+def get_register(dev,register):
+	ptype='B'
+	send_packet(dev,ptype+register)
+	buf=recv_packet(dev)
+	print(buf.index(0))
 
 if __name__=="__main__":
 	h=hid.device()
@@ -163,6 +258,9 @@ if __name__=="__main__":
 		exit(1)
 	else:
 		print('Login successful')
+
+	get_register(h,'a')
+	exit(0)
 
 	entry_count=get_num(h)
 	print("Entry count: "+str(entry_count))
