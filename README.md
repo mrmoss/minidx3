@@ -10,11 +10,11 @@ So I reversed engineered the USB HID protocol it uses and created a partially im
 
 	Logs into the device.
 	Logs out of the device.
-	Get the number of entries in the device.
-	Get an entry in the device.
-	Get product version of the device.
-	Get firmware date of the device.
-	Get any sort of register of the device (maybe?)
+	Get the number of entries from the device.
+	Get an entry from the device.
+	Get product version from the device.
+	Get firmware date from the device.
+	Get any sort of register from the device (maybe? last thing worked on...)
 
 This hasn't been REALLY looked at in a LONG time...over a year...so this is more for developers that are looking for a place to start.
 
