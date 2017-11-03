@@ -8,13 +8,13 @@ I'm also a pretty paranoid person...so it might be nothing...
 
 So I reversed engineered the USB HID protocol it uses and created a partially implemented python library that does the following:
 
-  Logs into the device.
-  Logs out of the device.
-  Get the number of entries in the device.
-  Get an entry in the device.
-  Get product version of the device.
-  Get firmware date of the device.
-  Get any sort of register of the device (maybe?)
+	Logs into the device.
+	Logs out of the device.
+	Get the number of entries in the device.
+	Get an entry in the device.
+	Get product version of the device.
+	Get firmware date of the device.
+	Get any sort of register of the device (maybe?)
 
 This hasn't been REALLY looked at in a LONG time...over a year...so this is more for developers that are looking for a place to start.
 
